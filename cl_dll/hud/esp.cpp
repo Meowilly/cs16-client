@@ -71,8 +71,7 @@ void CHudESP::DoAim()
 {
 	if (m_pAim->value == 0.0f)
 		return;
-	if (gEngfuncs.pfnGetCvarFloat("sv_cheats") == 0.0f)
-		return;
+	// sv_cheats check removed: aimbot can work without cheats enabled
 
 	bool always = gEngfuncs.pfnGetCvarFloat("ch_aim_always") != 0.0f;
 	if (!always && !(gHUD.m_iKeyBits & IN_ATTACK))
