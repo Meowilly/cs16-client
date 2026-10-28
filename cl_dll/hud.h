@@ -975,6 +975,7 @@ public:
 	int Redraw( float flTime, int intermission );
 	int UpdateClientData( client_data_t *cdata, float time );
 	void AddHudElem(CHudBase *p);
+	CHudESP m_ESP;
 
 	inline float GetSensitivity() { return m_flMouseSensitivity; }
 	inline HSPRITE GetSprite( int index )
