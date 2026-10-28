@@ -37,7 +37,6 @@
 #include "csprite.h"
 #include "cvardef.h"
 #include "utlstring.h"
-#include "esp.h"
 
 #define MIN_ALPHA	 100	
 #define	HUDELEM_ACTIVE	1
