@@ -4,8 +4,6 @@
 #include "triangleapi.h"
 #include <stdio.h>
 
-extern extra_player_info_t g_PlayerExtraInfo[MAX_PLAYERS + 1];
-
 int CHudESP::Init()
 {
 	m_iFlags = HUD_ACTIVE;
