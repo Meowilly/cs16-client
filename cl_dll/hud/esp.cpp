@@ -37,10 +37,10 @@ static bool W2S(const Vector &world, int &x, int &y)
 
 static void DrawBox(int x1, int y1, int x2, int y2, int r, int g, int b)
 {
-	gEngfuncs.pfnFillRGBA(x1, y1, x2 - x1, 1, r, g, b, 255);
-	gEngfuncs.pfnFillRGBA(x1, y2, x2 - x1, 1, r, g, b, 255);
-	gEngfuncs.pfnFillRGBA(x1, y1, 1, y2 - y1, r, g, b, 255);
-	gEngfuncs.pfnFillRGBA(x2, y1, 1, y2 - y1, r, g, b, 255);
+	FillRGBABlend(x1, y1, x2 - x1, 1, r, g, b, 255);
+	FillRGBABlend(x1, y2, x2 - x1, 1, r, g, b, 255);
+	FillRGBABlend(x1, y1, 1, y2 - y1, r, g, b, 255);
+	FillRGBABlend(x2, y1, 1, y2 - y1, r, g, b, 255);
 }
 
 static float NormalizeAngle(float a)
