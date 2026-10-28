@@ -5,6 +5,7 @@
 #include "event_api.h"
 #include "in_buttons.h"
 #include "usercmd.h"
+#include "pmtrace.h"
 #include <stdio.h>
 #include <math.h>
 
@@ -112,7 +113,7 @@ void CHudESP::DoAim()
 		if (g_PlayerExtraInfo[i].teamnumber == g_PlayerExtraInfo[local->index].teamnumber)
 			continue; // только враги
 
-		Vector target = ent->origin + Vector(0, 0, aimZ);
+		Vector target = ent->origin + Vector(0.0f, 0.0f, aimZ);
 		float yaw, pitch;
 		CalcAngles(eye, target, yaw, pitch);
 
@@ -160,7 +161,7 @@ void ESP_CreateMove(struct usercmd_s *cmd)
 	if (gEngfuncs.pfnGetCvarFloat("ch_bhop") != 0.0f && (cmd->buttons & IN_JUMP))
 	{
 		Vector start = local->origin;
-		Vector end = start - Vector(0, 0, 39);
+		Vector end = start - Vector(0.0f, 0.0f, 39.0f);
 		pmtrace_t *tr = gEngfuncs.PM_TraceLine((float *)&start, (float *)&end, 0, 2, -1);
 		bool onGround = tr && tr->fraction < 1.0f;
 		if (!onGround)
@@ -194,7 +195,7 @@ void ESP_CreateMove(struct usercmd_s *cmd)
 			if (g_PlayerExtraInfo[i].teamnumber == g_PlayerExtraInfo[local->index].teamnumber)
 				continue;
 
-			Vector target = ent->origin + Vector(0, 0, aimZ);
+			Vector target = ent->origin + Vector(0.0f, 0.0f, aimZ);
 			float yaw, pitch;
 			CalcAngles(eye, target, yaw, pitch);
 
@@ -212,7 +213,7 @@ void ESP_CreateMove(struct usercmd_s *cmd)
 			fire = true;
 		}
 
-		// через кадр, чтобы пистолеты и снайперки успе��али отпускать кнопку
+		// через кадр, чтобы пистолеты и снайперки успевали отпускать кнопку
 		static bool toggle = false;
 		if (fire)
 		{
@@ -250,8 +251,8 @@ int CHudESP::Draw(float flTime)
 		if (ent->curstate.messagenum < local->curstate.messagenum)
 			continue; // сущность не обновлялась в этом кадре
 
-		Vector head = ent->origin + Vector(0, 0, 36);
-		Vector feet = ent->origin - Vector(0, 0, 36);
+		Vector head = ent->origin + Vector(0.0f, 0.0f, 36.0f);
+		Vector feet = ent->origin - Vector(0.0f, 0.0f, 36.0f);
 
 		int hx, hy, fx, fy;
 		if (!W2S(head, hx, hy) || !W2S(feet, fx, fy))
