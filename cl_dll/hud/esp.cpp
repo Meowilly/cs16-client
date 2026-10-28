@@ -4,6 +4,7 @@
 #include "triangleapi.h"
 #include "event_api.h"
 #include "in_buttons.h"
+#include "usercmd.h"
 #include <stdio.h>
 #include <math.h>
 
@@ -14,6 +15,11 @@ int CHudESP::Init()
 	m_pAim = CVAR_CREATE("ch_aim", "0", FCVAR_ARCHIVE);
 	m_pAimFov = CVAR_CREATE("ch_aim_fov", "30", FCVAR_ARCHIVE);
 	m_pAimSmooth = CVAR_CREATE("ch_aim_smooth", "5", FCVAR_ARCHIVE);
+	CVAR_CREATE("ch_aim_z", "14", FCVAR_ARCHIVE);      // высота точки наводки от центра тела
+	CVAR_CREATE("ch_aim_always", "0", FCVAR_ARCHIVE);  // 1 = наводиться всегда, 0 = только при стрельбе
+	CVAR_CREATE("ch_trigger", "0", FCVAR_ARCHIVE);     // триггербот
+	CVAR_CREATE("ch_trigger_fov", "2", FCVAR_ARCHIVE); // допуск в градусах
+	CVAR_CREATE("ch_bhop", "0", FCVAR_ARCHIVE);        // автобхоп
 	gHUD.AddHudElem(this);
 	return 1;
 }
@@ -50,15 +56,26 @@ static float NormalizeAngle(float a)
 	return a;
 }
 
+static void CalcAngles(const Vector &eye, const Vector &target, float &yaw, float &pitch)
+{
+	Vector d = target - eye;
+	float dist2d = sqrtf(d.x * d.x + d.y * d.y);
+	yaw = atan2f(d.y, d.x) * 180.0f / 3.14159265f;
+	pitch = -atan2f(d.z, dist2d) * 180.0f / 3.14159265f;
+}
+
 // ch_aim 0/1, ch_aim_fov (градусы), ch_aim_smooth (1 = мгновенно, больше = плавнее)
-// Наводится только пока зажата кнопка стрельбы. Только при sv_cheats 1.
+// ch_aim_z (высота точки наводки), ch_aim_always (1 = без нажатия стрельбы)
+// Только при sv_cheats 1.
 void CHudESP::DoAim()
 {
 	if (m_pAim->value == 0.0f)
 		return;
 	if (gEngfuncs.pfnGetCvarFloat("sv_cheats") == 0.0f)
 		return;
-	if (!(gHUD.m_iKeyBits & IN_ATTACK))
+
+	bool always = gEngfuncs.pfnGetCvarFloat("ch_aim_always") != 0.0f;
+	if (!always && !(gHUD.m_iKeyBits & IN_ATTACK))
 		return;
 
 	cl_entity_t *local = gEngfuncs.GetLocalPlayer();
@@ -76,6 +93,7 @@ void CHudESP::DoAim()
 	float smooth = m_pAimSmooth->value;
 	if (smooth < 1.0f)
 		smooth = 1.0f;
+	float aimZ = gEngfuncs.pfnGetCvarFloat("ch_aim_z");
 
 	float bestDiff = 99999.0f;
 	float bestDP = 0.0f, bestDY = 0.0f;
@@ -97,12 +115,9 @@ void CHudESP::DoAim()
 		if (g_PlayerExtraInfo[i].teamnumber == g_PlayerExtraInfo[local->index].teamnumber)
 			continue; // только враги
 
-		Vector target = ent->origin + Vector(0, 0, 28); // голова
-		Vector d = target - eye;
-
-		float dist2d = sqrtf(d.x * d.x + d.y * d.y);
-		float yaw = atan2f(d.y, d.x) * 180.0f / 3.14159265f;
-		float pitch = -atan2f(d.z, dist2d) * 180.0f / 3.14159265f;
+		Vector target = ent->origin + Vector(0, 0, aimZ);
+		float yaw, pitch;
+		CalcAngles(eye, target, yaw, pitch);
 
 		float dy = NormalizeAngle(yaw - cur.y);
 		float dp = NormalizeAngle(pitch - cur.x);
@@ -129,6 +144,89 @@ void CHudESP::DoAim()
 	if (na.x < -89.0f) na.x = -89.0f;
 
 	gEngfuncs.SetViewAngles((float *)&na);
+}
+
+// Вызывается из CL_CreateMove (input.cpp): автобхоп и триггербот.
+// ch_bhop 1      - автобхоп (держи пробел)
+// ch_trigger 1   - стрельба, когда прицел на враге
+// ch_trigger_fov - допуск в градусах (2 по умолчанию)
+// Только при sv_cheats 1.
+void ESP_CreateMove(struct usercmd_s *cmd)
+{
+	if (!cmd)
+		return;
+	if (gEngfuncs.pfnGetCvarFloat("sv_cheats") == 0.0f)
+		return;
+
+	cl_entity_t *local = gEngfuncs.GetLocalPlayer();
+	if (!local)
+		return;
+
+	// --- автобхоп: в воздухе отпускаем прыжок, на земле держим ---
+	if (gEngfuncs.pfnGetCvarFloat("ch_bhop") != 0.0f && (cmd->buttons & IN_JUMP))
+	{
+		Vector start = local->origin;
+		Vector end = start - Vector(0, 0, 39);
+		pmtrace_t *tr = gEngfuncs.PM_TraceLine((float *)&start, (float *)&end, 0, 2, -1);
+		bool onGround = tr && tr->fraction < 1.0f;
+		if (!onGround)
+			cmd->buttons &= ~IN_JUMP;
+	}
+
+	// --- триггербот ---
+	if (gEngfuncs.pfnGetCvarFloat("ch_trigger") != 0.0f)
+	{
+		float vh[3] = { 0.0f, 0.0f, 17.0f };
+		gEngfuncs.pEventAPI->EV_LocalPlayerViewheight(vh);
+		Vector eye = local->origin + Vector(vh[0], vh[1], vh[2]);
+
+		float maxDiff = gEngfuncs.pfnGetCvarFloat("ch_trigger_fov");
+		if (maxDiff < 0.5f)
+			maxDiff = 0.5f;
+		float aimZ = gEngfuncs.pfnGetCvarFloat("ch_aim_z");
+
+		bool fire = false;
+		int maxClients = gEngfuncs.GetMaxClients();
+		for (int i = 1; i <= maxClients && !fire; i++)
+		{
+			if (i == local->index)
+				continue;
+
+			cl_entity_t *ent = gEngfuncs.GetEntityByIndex(i);
+			if (!ent || !ent->player)
+				continue;
+			if (g_PlayerExtraInfo[i].dead)
+				continue;
+			if (g_PlayerExtraInfo[i].teamnumber == g_PlayerExtraInfo[local->index].teamnumber)
+				continue;
+
+			Vector target = ent->origin + Vector(0, 0, aimZ);
+			float yaw, pitch;
+			CalcAngles(eye, target, yaw, pitch);
+
+			float dy = NormalizeAngle(yaw - cmd->viewangles[1]);
+			float dp = NormalizeAngle(pitch - cmd->viewangles[0]);
+			if (sqrtf(dy * dy + dp * dp) > maxDiff)
+				continue;
+
+			// видимость: луч до цели не должен упереться в стену раньше самого игрока
+			float dist = (target - eye).Length();
+			pmtrace_t *tr = gEngfuncs.PM_TraceLine((float *)&eye, (float *)&target, 0, 2, -1);
+			if (tr && tr->fraction * dist < dist - 24.0f)
+				continue;
+
+			fire = true;
+		}
+
+		// через кадр, чтобы пистолеты и снайперки успевали отпускать кнопку
+		static bool toggle = false;
+		if (fire)
+		{
+			toggle = !toggle;
+			if (toggle)
+				cmd->buttons |= IN_ATTACK;
+		}
+	}
 }
 
 int CHudESP::Draw(float flTime)
