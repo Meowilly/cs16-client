@@ -1,4 +1,3 @@
-//666
 #include "hud.h"
 #include "cl_util.h"
 #include "parsemsg.h"
@@ -6,7 +5,6 @@
 #include "event_api.h"
 #include "in_buttons.h"
 #include "usercmd.h"
-#include "pmtrace.h"
 #include <stdio.h>
 #include <math.h>
 
@@ -19,6 +17,9 @@ int CHudESP::Init()
 	m_pAimSmooth = CVAR_CREATE("ch_aim_smooth", "5", FCVAR_ARCHIVE);
 	CVAR_CREATE("ch_aim_z", "14", FCVAR_ARCHIVE);      // высота точки наводки от центра тела
 	CVAR_CREATE("ch_aim_always", "0", FCVAR_ARCHIVE);  // 1 = наводиться всегда, 0 = только при стрельбе
+	CVAR_CREATE("ch_aim_vis", "1", FCVAR_ARCHIVE);     // 1 = не наводиться сквозь стены
+	CVAR_CREATE("ch_aim_prio", "0", FCVAR_ARCHIVE);    // 0 = ближайший к прицелу, 1 = ближайший по расстоянию
+	CVAR_CREATE("ch_wh_team", "1", FCVAR_ARCHIVE);     // 1 = показывать своих, 0 = только врагов
 	CVAR_CREATE("ch_trigger", "0", FCVAR_ARCHIVE);     // триггербот
 	CVAR_CREATE("ch_trigger_fov", "2", FCVAR_ARCHIVE); // допуск в градусах
 	CVAR_CREATE("ch_bhop", "0", FCVAR_ARCHIVE);        // автобхоп
@@ -66,11 +67,35 @@ static void CalcAngles(const Vector &eye, const Vector &target, float &yaw, floa
 	pitch = -atan2f(d.z, dist2d) * 180.0f / 3.14159265f;
 }
 
+// Видна ли цель: луч от глаз до цели не должен упереться в стену раньше самого игрока
+static bool IsVisible(const Vector &eye, const Vector &target)
+{
+	Vector s = eye;
+	Vector e = target;
+	pmtrace_t *tr = gEngfuncs.PM_TraceLine((float *)&s, (float *)&e, 0, 2, -1);
+	if (!tr)
+		return true;
+
+	float dist = (target - eye).Length();
+	return tr->fraction * dist >= dist - 24.0f;
+}
+
+static Vector GetEye(cl_entity_t *local)
+{
+	float vh[3] = { 0.0f, 0.0f, 17.0f };
+	gEngfuncs.pEventAPI->EV_LocalPlayerViewheight(vh);
+	return local->origin + Vector(vh[0], vh[1], vh[2]);
+}
+
 // ch_aim 0/1, ch_aim_fov (градусы), ch_aim_smooth (1 = мгновенно, больше = плавнее)
 // ch_aim_z (высота точки наводки), ch_aim_always (1 = без нажатия стрельбы)
+// ch_aim_vis (1 = не сквозь стены), ch_aim_prio (0 = к прицелу, 1 = по расстоянию)
+// Только при sv_cheats 1.
 void CHudESP::DoAim()
 {
 	if (m_pAim->value == 0.0f)
+		return;
+	if (gEngfuncs.pfnGetCvarFloat("sv_cheats") == 0.0f)
 		return;
 
 	bool always = gEngfuncs.pfnGetCvarFloat("ch_aim_always") != 0.0f;
@@ -81,9 +106,7 @@ void CHudESP::DoAim()
 	if (!local)
 		return;
 
-	float vh[3] = { 0.0f, 0.0f, 17.0f };
-	gEngfuncs.pEventAPI->EV_LocalPlayerViewheight(vh);
-	Vector eye = local->origin + Vector(vh[0], vh[1], vh[2]);
+	Vector eye = GetEye(local);
 
 	Vector cur;
 	gEngfuncs.GetViewAngles((float *)&cur);
@@ -93,8 +116,10 @@ void CHudESP::DoAim()
 	if (smooth < 1.0f)
 		smooth = 1.0f;
 	float aimZ = gEngfuncs.pfnGetCvarFloat("ch_aim_z");
+	bool needVis = gEngfuncs.pfnGetCvarFloat("ch_aim_vis") != 0.0f;
+	bool byDist = gEngfuncs.pfnGetCvarFloat("ch_aim_prio") != 0.0f;
 
-	float bestDiff = 99999.0f;
+	float bestScore = 99999.0f;
 	float bestDP = 0.0f, bestDY = 0.0f;
 	bool found = false;
 
@@ -114,7 +139,8 @@ void CHudESP::DoAim()
 		if (g_PlayerExtraInfo[i].teamnumber == g_PlayerExtraInfo[local->index].teamnumber)
 			continue; // только враги
 
-		Vector target = ent->origin + Vector(0.0f, 0.0f, aimZ);
+		Vector target = ent->origin + Vector(0, 0, aimZ);
+
 		float yaw, pitch;
 		CalcAngles(eye, target, yaw, pitch);
 
@@ -122,10 +148,16 @@ void CHudESP::DoAim()
 		float dp = NormalizeAngle(pitch - cur.x);
 		float diff = sqrtf(dy * dy + dp * dp);
 
-		if (diff > maxFov || diff >= bestDiff)
+		if (diff > maxFov)
+			continue;
+		if (needVis && !IsVisible(eye, target))
+			continue; // за стеной
+
+		float score = byDist ? (target - eye).Length() : diff;
+		if (score >= bestScore)
 			continue;
 
-		bestDiff = diff;
+		bestScore = score;
 		bestDY = dy;
 		bestDP = dp;
 		found = true;
@@ -147,11 +179,14 @@ void CHudESP::DoAim()
 
 // Вызывается из CL_CreateMove (input.cpp): автобхоп и триггербот.
 // ch_bhop 1      - автобхоп (держи пробел)
-// ch_trigger 1   - стрельба, когда прицел на враге
+// ch_trigger 1   - стрельба, когда прицел на видимом враге
 // ch_trigger_fov - допуск в градусах (2 по умолчанию)
+// Только при sv_cheats 1.
 void ESP_CreateMove(struct usercmd_s *cmd)
 {
 	if (!cmd)
+		return;
+	if (gEngfuncs.pfnGetCvarFloat("sv_cheats") == 0.0f)
 		return;
 
 	cl_entity_t *local = gEngfuncs.GetLocalPlayer();
@@ -162,7 +197,7 @@ void ESP_CreateMove(struct usercmd_s *cmd)
 	if (gEngfuncs.pfnGetCvarFloat("ch_bhop") != 0.0f && (cmd->buttons & IN_JUMP))
 	{
 		Vector start = local->origin;
-		Vector end = start - Vector(0.0f, 0.0f, 39.0f);
+		Vector end = start - Vector(0, 0, 39);
 		pmtrace_t *tr = gEngfuncs.PM_TraceLine((float *)&start, (float *)&end, 0, 2, -1);
 		bool onGround = tr && tr->fraction < 1.0f;
 		if (!onGround)
@@ -172,9 +207,7 @@ void ESP_CreateMove(struct usercmd_s *cmd)
 	// --- триггербот ---
 	if (gEngfuncs.pfnGetCvarFloat("ch_trigger") != 0.0f)
 	{
-		float vh[3] = { 0.0f, 0.0f, 17.0f };
-		gEngfuncs.pEventAPI->EV_LocalPlayerViewheight(vh);
-		Vector eye = local->origin + Vector(vh[0], vh[1], vh[2]);
+		Vector eye = GetEye(local);
 
 		float maxDiff = gEngfuncs.pfnGetCvarFloat("ch_trigger_fov");
 		if (maxDiff < 0.5f)
@@ -196,7 +229,7 @@ void ESP_CreateMove(struct usercmd_s *cmd)
 			if (g_PlayerExtraInfo[i].teamnumber == g_PlayerExtraInfo[local->index].teamnumber)
 				continue;
 
-			Vector target = ent->origin + Vector(0.0f, 0.0f, aimZ);
+			Vector target = ent->origin + Vector(0, 0, aimZ);
 			float yaw, pitch;
 			CalcAngles(eye, target, yaw, pitch);
 
@@ -205,10 +238,7 @@ void ESP_CreateMove(struct usercmd_s *cmd)
 			if (sqrtf(dy * dy + dp * dp) > maxDiff)
 				continue;
 
-			// видимость: луч до цели не должен упереться в стену раньше самого игрока
-			float dist = (target - eye).Length();
-			pmtrace_t *tr = gEngfuncs.PM_TraceLine((float *)&eye, (float *)&target, 0, 2, -1);
-			if (tr && tr->fraction * dist < dist - 24.0f)
+			if (!IsVisible(eye, target))
 				continue;
 
 			fire = true;
@@ -225,6 +255,8 @@ void ESP_CreateMove(struct usercmd_s *cmd)
 	}
 }
 
+// ch_wh 1/2. Красный бокс = враг за стеной, жёлтый = враг виден, зелёный = свой.
+// ch_wh_team 0 скрывает своих.
 int CHudESP::Draw(float flTime)
 {
 	DoAim();
@@ -233,9 +265,17 @@ int CHudESP::Draw(float flTime)
 	if (mode <= 0)
 		return 0;
 
+	// только офлайн / с читами
+	if (gEngfuncs.pfnGetCvarFloat("sv_cheats") == 0.0f)
+		return 0;
+
 	cl_entity_t *local = gEngfuncs.GetLocalPlayer();
 	if (!local)
 		return 0;
+
+	Vector eye = GetEye(local);
+	float aimZ = gEngfuncs.pfnGetCvarFloat("ch_aim_z");
+	bool showTeam = gEngfuncs.pfnGetCvarFloat("ch_wh_team") != 0.0f;
 
 	int maxClients = gEngfuncs.GetMaxClients();
 
@@ -252,8 +292,12 @@ int CHudESP::Draw(float flTime)
 		if (ent->curstate.messagenum < local->curstate.messagenum)
 			continue; // сущность не обновлялась в этом кадре
 
-		Vector head = ent->origin + Vector(0.0f, 0.0f, 36.0f);
-		Vector feet = ent->origin - Vector(0.0f, 0.0f, 36.0f);
+		bool enemy = g_PlayerExtraInfo[i].teamnumber != g_PlayerExtraInfo[local->index].teamnumber;
+		if (!enemy && !showTeam)
+			continue;
+
+		Vector head = ent->origin + Vector(0, 0, 36);
+		Vector feet = ent->origin - Vector(0, 0, 36);
 
 		int hx, hy, fx, fy;
 		if (!W2S(head, hx, hy) || !W2S(feet, fx, fy))
@@ -264,10 +308,19 @@ int CHudESP::Draw(float flTime)
 			continue;
 		int w = h / 2;
 
-		bool enemy = g_PlayerExtraInfo[i].teamnumber != g_PlayerExtraInfo[local->index].teamnumber;
-		int r = enemy ? 255 : 0;
-		int g = enemy ? 50 : 255;
-		int b = 50;
+		int r, g, b;
+		if (!enemy)
+		{
+			r = 0; g = 255; b = 50;
+		}
+		else if (IsVisible(eye, ent->origin + Vector(0, 0, aimZ)))
+		{
+			r = 255; g = 255; b = 0;
+		}
+		else
+		{
+			r = 255; g = 50; b = 50;
+		}
 
 		DrawBox(hx - w / 2, hy, hx + w / 2, fy, r, g, b);
 
