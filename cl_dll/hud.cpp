@@ -414,7 +414,6 @@ void CHud :: Init( void )
 	m_DeathNotice.Init();
 	m_TextMessage.Init();
 	m_MOTD.Init();
-	m_ESP.Init();
 
 	// all things that have own background and must be drawn last
 	m_ProgressBar.Init();
@@ -427,6 +426,8 @@ void CHud :: Init( void )
 	m_Scoreboard.Init();
 
 	GetClientVoice()->Init( &g_VoiceStatusHelper );
+
+	m_ESP.Init();
 
 
 
