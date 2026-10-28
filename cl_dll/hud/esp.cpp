@@ -90,12 +90,9 @@ static Vector GetEye(cl_entity_t *local)
 // ch_aim 0/1, ch_aim_fov (градусы), ch_aim_smooth (1 = мгновенно, больше = плавнее)
 // ch_aim_z (высота точки наводки), ch_aim_always (1 = без нажатия стрельбы)
 // ch_aim_vis (1 = не сквозь стены), ch_aim_prio (0 = к прицелу, 1 = по расстоянию)
-// Только при sv_cheats 1.
 void CHudESP::DoAim()
 {
 	if (m_pAim->value == 0.0f)
-		return;
-	if (gEngfuncs.pfnGetCvarFloat("sv_cheats") == 0.0f)
 		return;
 
 	bool always = gEngfuncs.pfnGetCvarFloat("ch_aim_always") != 0.0f;
@@ -181,12 +178,9 @@ void CHudESP::DoAim()
 // ch_bhop 1      - автобхоп (держи пробел)
 // ch_trigger 1   - стрельба, когда прицел на видимом враге
 // ch_trigger_fov - допуск в градусах (2 по умолчанию)
-// Только при sv_cheats 1.
 void ESP_CreateMove(struct usercmd_s *cmd)
 {
 	if (!cmd)
-		return;
-	if (gEngfuncs.pfnGetCvarFloat("sv_cheats") == 0.0f)
 		return;
 
 	cl_entity_t *local = gEngfuncs.GetLocalPlayer();
@@ -263,10 +257,6 @@ int CHudESP::Draw(float flTime)
 
 	int mode = (int)m_pCvar->value;
 	if (mode <= 0)
-		return 0;
-
-	// только офлайн / с читами
-	if (gEngfuncs.pfnGetCvarFloat("sv_cheats") == 0.0f)
 		return 0;
 
 	cl_entity_t *local = gEngfuncs.GetLocalPlayer();
