@@ -95,7 +95,8 @@ int CHudESP::Draw(float flTime)
 			char text[96];
 			snprintf(text, sizeof(text), "%s [%dm]", info.name ? info.name : "?", (int)dist);
 
-			gHUD.DrawHudString(hx - w / 2, hy - 14, ScreenWidth, text, r, g, b);
+			gEngfuncs.pfnDrawSetTextColor(r / 255.0f, g / 255.0f, b / 255.0f);
+            gEngfuncs.pfnDrawConsoleString(hx - w / 2, hy - 14, text);
 		}
 	}
 	return 0;
