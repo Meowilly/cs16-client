@@ -2,7 +2,6 @@
 #include "cl_util.h"
 #include "parsemsg.h"
 #include "triangleapi.h"
-#include "esp.h"
 #include <stdio.h>
 
 extern extra_player_info_t g_PlayerExtraInfo[MAX_PLAYERS + 1];
