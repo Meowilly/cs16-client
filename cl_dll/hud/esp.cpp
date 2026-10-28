@@ -93,11 +93,6 @@ static Vector GetEye(cl_entity_t *local)
 // ch_aim_vis (1 = не сквозь стены), ch_aim_prio (0 = к прицелу, 1 = по расстоянию)
 // Только при sv_cheats 1.
 void CHudESP::DoAim()
-{
-	if (m_pAim->value == 0.0f)
-		return;
-	if (gEngfuncs.pfnGetCvarFloat("sv_cheats") == 0.0f)
-		return;
 
 	bool always = gEngfuncs.pfnGetCvarFloat("ch_aim_always") != 0.0f;
 	if (!always && !(gHUD.m_iKeyBits & IN_ATTACK))
@@ -185,10 +180,6 @@ void CHudESP::DoAim()
 // Только при sv_cheats 1.
 void ESP_CreateMove(struct usercmd_s *cmd)
 {
-	if (!cmd)
-		return;
-	if (gEngfuncs.pfnGetCvarFloat("sv_cheats") == 0.0f)
-		return;
 
 	cl_entity_t *local = gEngfuncs.GetLocalPlayer();
 	if (!local)
