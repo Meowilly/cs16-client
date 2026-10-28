@@ -66,12 +66,10 @@ static void CalcAngles(const Vector &eye, const Vector &target, float &yaw, floa
 
 // ch_aim 0/1, ch_aim_fov (градусы), ch_aim_smooth (1 = мгновенно, больше = плавнее)
 // ch_aim_z (высота точки наводки), ch_aim_always (1 = без нажатия стрельбы)
-// Только при sv_cheats 1.
 void CHudESP::DoAim()
 {
 	if (m_pAim->value == 0.0f)
 		return;
-	// sv_cheats check removed: aimbot can work without cheats enabled
 
 	bool always = gEngfuncs.pfnGetCvarFloat("ch_aim_always") != 0.0f;
 	if (!always && !(gHUD.m_iKeyBits & IN_ATTACK))
@@ -149,12 +147,9 @@ void CHudESP::DoAim()
 // ch_bhop 1      - автобхоп (держи пробел)
 // ch_trigger 1   - стрельба, когда прицел на враге
 // ch_trigger_fov - допуск в градусах (2 по умолчанию)
-// Только при sv_cheats 1.
 void ESP_CreateMove(struct usercmd_s *cmd)
 {
 	if (!cmd)
-		return;
-	if (gEngfuncs.pfnGetCvarFloat("sv_cheats") == 0.0f)
 		return;
 
 	cl_entity_t *local = gEngfuncs.GetLocalPlayer();
@@ -217,7 +212,7 @@ void ESP_CreateMove(struct usercmd_s *cmd)
 			fire = true;
 		}
 
-		// через кадр, чтобы пистолеты и снайперки успевали отпускать кнопку
+		// через кадр, чтобы пистолеты и снайперки успе��али отпускать кнопку
 		static bool toggle = false;
 		if (fire)
 		{
@@ -234,10 +229,6 @@ int CHudESP::Draw(float flTime)
 
 	int mode = (int)m_pCvar->value;
 	if (mode <= 0)
-		return 0;
-
-	// только офлайн / с читами
-	if (gEngfuncs.pfnGetCvarFloat("sv_cheats") == 0.0f)
 		return 0;
 
 	cl_entity_t *local = gEngfuncs.GetLocalPlayer();
