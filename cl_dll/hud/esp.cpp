@@ -257,10 +257,6 @@ int CHudESP::Draw(float flTime)
 	if (mode <= 0)
 		return 0;
 
-	// только офлайн / с читами
-	if (gEngfuncs.pfnGetCvarFloat("sv_cheats") == 0.0f)
-		return 0;
-
 	cl_entity_t *local = gEngfuncs.GetLocalPlayer();
 	if (!local)
 		return 0;
