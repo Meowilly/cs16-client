@@ -357,7 +357,15 @@ protected:
 	int m_iMaxLength;
 	bool ignoreThisMotd;
 };
-
+class CHudESP : public CHudBase
+{
+public:
+	int Init( void );
+	int VidInit( void );
+	int Draw( float flTime );
+private:
+	cvar_t *m_pCvar;
+};
 
 class CHudScoreboard: public CHudBase
 {
