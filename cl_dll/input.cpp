@@ -636,9 +636,6 @@ void CL_AdjustAngles ( float frametime, float *viewangles )
 	if (viewangles[ROLL] < -50)
 		viewangles[ROLL] = -50;
 }
-	if (viewangles[ROLL] < -50)
-		viewangles[ROLL] = -50;
-}
 
 extern void ESP_CreateMove( struct usercmd_s *cmd );
 
