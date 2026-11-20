@@ -1,4 +1,4 @@
-// --- в DoAim() ---
+// --- в DoAim() --- лол
 void CHudESP::DoAim()
 {
 	if (Cv("ch_aim") == 0.0f)
